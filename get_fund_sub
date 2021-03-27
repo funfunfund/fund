@@ -1,0 +1,78 @@
+import requests, json, time,re
+
+## get authorization ##
+def get_authorization():
+    bs = requests.get('https://www.#FFF#thailand.com/Common/funds/snapshot/PortfolioSAL.aspx?Site=th&FC=F000000ROF&IT=FO&LANG=th-TH')
+    authorization = None
+    if len(re.findall('tokenMaaS: "[\w\.\-\_]+"',bs.text)) > 0:
+        authorization = re.findall('tokenMaaS: "[\w\.\-\_]+"',bs.text)[0].split('"')[1]
+    return authorization
+
+##for i in range(1):
+##    for a in 'A':
+##        authorize = get_authorization()
+##        headers = {'Authorization': 'Bearer {}'.format(authorize)}
+##        w = open('fund_list_{}.csv'.format(a), 'a')
+##        for b in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+##            for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+##                url = 'https://www.us-api.#FFF#.com/sal/sal-service/fund/securityMetaData/F000000{}{}{}'.format(a,b,c)
+##                bs = requests.get(url, headers = headers)
+##                if bs.status_code == 401:
+##                    authorize = get_authorization()
+##                    headers = {'Authorization': 'Bearer {}'.format(authorize)}
+##                    url = 'https://www.us-api.#FFF#.com/sal/sal-service/fund/securityMetaData/F000000{}{}{}'.format(a,b,c)
+##                    bs = requests.get(url, headers = headers)
+##                if 'name' in bs.json().keys():
+##                    name = bs.json()['name']
+##                    domicileCountryId = bs.json()['domicileCountryId']
+##                    newAssetType = bs.json()['newAssetType']
+##                    print('F000000{}{}{} # {} # {}'.format(a,b,c, name , domicileCountryId, newAssetType))
+##                    w.write('F000000{}{}{}#{}#{}#{}\n'.format(a,b,c, name , domicileCountryId, newAssetType))
+##            print('{}{}'.format(a,b))
+##            time.sleep(5)
+##        w.close()
+
+## get result ##
+
+
+# 
+for each_code in open('THA_FUND_CODE_ALL.txt','r').readlines():
+    each_code = each_code.strip()
+    url = 'https://www.us-api.##FFF##.com/sal/sal-service/fund/portfolio/holding/v2/{}/data?premiumNum=50&freeNum=50'.format(each_code)
+    trycnt = 0
+    while trycnt < 5:
+  #      print("Trying # ", each_code, " , ", trycnt)
+        authorize = get_authorization()
+        headers = {'Authorization': 'Bearer {}'.format(authorize)}
+        bs = requests.get(url, headers = headers)
+        if bs.status_code == 200:
+            trycnt = 10
+        else:
+            trycnt +=1
+            time.sleep(10)
+    if bs.status_code != 200 or 'json' not in bs.headers.get('content-type'):
+        continue
+    portfolioDate = bs.json()['holdingSummary']['portfolioDate']
+    for each in bs.json()['equityHoldingPage']['holdingList']:
+        name = each['securityName']
+        nOfShare = each['numberOfShare']
+        mValue  = each['marketValue']
+        sChange =  each['shareChange']
+        period_trend = ""
+        if each['holdingTrend'] is not None:
+            for each_period in range(4):
+                if 'period' in each['holdingTrend'].keys():
+                    period = each['holdingTrend']['period'][each_period]
+                else:
+                    period = 'No Period'
+                trend = each['holdingTrend']['trend'][each_period]
+                period_trend += "#{}#{}".format(period, trend)
+        else:
+            for each_period in range(4):
+                period_trend += "#{}#{}".format("None", "None")
+##        print("{}#{}#{}#{}#{}#{}#{}".format(portfolioDate, each_code, name, nOfShare, mValue, sChange, period_trend))
+        print("{}#{}#{}".format(portfolioDate, each_code, name))
+        w = open('result-27Mar.csv','a')
+        w.write("{}#{}#{}#{}#{}#{}#{}\n".format(portfolioDate, each_code, name, nOfShare, mValue, sChange, period_trend))
+        w.close()
+    time.sleep(2)
